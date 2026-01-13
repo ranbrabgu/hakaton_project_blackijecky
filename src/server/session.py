@@ -69,9 +69,8 @@ def play_one_round(conn: socket.socket, addr: Tuple[str, int], deck: Deck) -> in
             last_sent = _send_card(conn, addr, RESULT_NOT_OVER, c, "player hit card")
 
             if is_bust(player):
-                # Final: player bust -> LOSS
-                # First reveal hidden dealer card (so client knows dealer hand)
-                last_sent = _send_card(conn, addr, RESULT_NOT_OVER, dealer[1], "dealer reveal hidden (after player bust)")
+                # Player bust -> LOSS immediately. Do NOT reveal dealer hidden card.
+                # Final payload still needs a card field, so reuse the bust card (the last card sent).
                 final = build_payload_server(RESULT_LOSS, last_sent.rank, last_sent.suit)
                 conn.sendall(final)
                 log_packet(log, "OUT", "TCP", addr, final, note=f"final result (player bust) pv={hand_value(player)}")
