@@ -3,6 +3,9 @@ import socket
 import threading
 from src.common.logging_utils import setup_logging, get_logger
 from src.server.broadcaster import broadcast_offers
+import threading
+from src.server.session import handle_client
+
 
 log = get_logger("server.main")
 
@@ -39,10 +42,14 @@ def main() -> None:
     log.info("Broadcasting offers. Press Ctrl+C to stop.")
 
     try:
-        # For now: just keep the server alive.
-        # Later: accept TCP clients and run sessions here.
         while True:
-            tcp_listener.accept()[0].close()  # placeholder: immediately close
+            conn, addr = tcp_listener.accept()
+            t_client = threading.Thread(
+                target=handle_client,
+                args=(conn, addr),
+                daemon=True,
+            )
+            t_client.start()
     except KeyboardInterrupt:
         log.info("Shutting down...")
     finally:
