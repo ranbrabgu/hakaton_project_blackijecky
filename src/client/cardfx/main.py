@@ -36,25 +36,39 @@ def main():
 
         # --- 2) Blackjack table ---
         table = BlackjackTable(BlackjackTableConfig())
-        table.render(r, prompt="Hit or Stand?")
+        table.render(r)
         time.sleep(1)
+        table.set_permanent_prompt(r, "Initial Draw")
+
         # 2. draw player card
-        table.deal_card(r, "player", "A", "♠", prompt="Hit or Stand?")
+        table.deal_card(r, "player", "A", "♠")
 
         # 3. draw player card
-        table.deal_card(r, "player", "7", "♥", prompt="Hit or Stand?")
+        table.deal_card(r, "player", "7", "♥")
 
         # 4. draw dealer card (auto hole card is added)
-        table.deal_card(r, "dealer", "K", "♦", prompt="Hit or Stand?")
+        table.deal_card(r, "dealer", "K", "♦")
 
+        table.set_permanent_prompt(r, None)
+        table.set_temporary_prompt(r, "Hit or Stand")
+        time.sleep(1)
+        table.set_temporary_prompt(r, None)
         # 5. draw player card
-        table.deal_card(r, "player", "5", "♣", prompt="Hit or Stand?")
+        table.deal_card(r, "player", "5", "♣")
 
+        table.set_temporary_prompt(r, "Hit or Stand")
+        time.sleep(1)
+        table.set_temporary_prompt(r, None)
+
+        table.set_permanent_prompt(r, "Dealer's turn")
+        time.sleep(1)
         # 6. draw dealer card (this flips the hole card)
-        table.deal_card(r, "dealer", "9", "♠", prompt="Hit or Stand?")
+        table.deal_card(r, "dealer", "9", "♠")
 
         # 7. draw dealer card (normal dealer hit)
-        table.deal_card(r, "dealer", "3", "♥", prompt="Hit or Stand?")
+        table.deal_card(r, "dealer", "3", "♥")
+
+        table.set_permanent_prompt(r, None)
 
         # keep final state visible
         time.sleep(1.0)

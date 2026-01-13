@@ -82,6 +82,8 @@ class BlackjackTable:
         self.cfg = cfg
         self.dealer_hand: List[Tuple[str, str, bool]] = []  # (rank, suit, is_face_down)
         self.player_hand: List[Tuple[str, str, bool]] = []  # always face_up (False)
+        self._permanent_prompt: str | None = None
+        self._temporary_prompt: str | None = None
 
     # ---------- state ----------
     def reset(self) -> None:
@@ -149,8 +151,11 @@ class BlackjackTable:
             x = max(0, layout["hand_right_limit"] - 12)  # fallback near the limit
         return int(x), int(y)
 
+    def _active_prompt(self) -> str | None:
+        return self._temporary_prompt if self._temporary_prompt is not None else self._permanent_prompt
+
     # ---------- rendering ----------
-    def render(self, r: TerminalRenderer, *, prompt: str = "Hit or Stand?", show_shoe_card: bool = True) -> None:
+    def render(self, r: TerminalRenderer, *, show_shoe_card: bool = True) -> None:
         term_w, term_h = r.get_size()
         card_w, card_h = self._choose_card_size(term_w, term_h)
 
@@ -192,11 +197,12 @@ class BlackjackTable:
         # Shoe drawn on TOP to occlude/hide part of the ready card
         r.draw_sprite(layout["shoe_spr"], layout["shoe_x"], layout["shoe_y"], layout["term_w"], layout["term_h"], style=RESET)
 
-        # Bottom prompt
-        if prompt:
-            px = max(1, (term_w // 2) - (len(prompt) // 2)) + 1
+        # Prompt (temporary overrides permanent)
+        prompt_text = self._active_prompt()
+        if prompt_text:
+            px = max(1, (term_w // 2) - (len(prompt_text) // 2)) + 1
             r.move(term_h, px)
-            print(BOLD.prefix + prompt + BOLD.suffix, end="")
+            print(BOLD.prefix + prompt_text + BOLD.suffix, end="")
 
         r.flush()
 
@@ -207,8 +213,6 @@ class BlackjackTable:
         who: Literal["dealer", "player"],
         rank: str,
         suit: str,
-        *,
-        prompt: str = "Hit or Stand?",
     ) -> None:
         """
         Deal logic:
@@ -221,6 +225,9 @@ class BlackjackTable:
 
         The hands persist until reset().
         """
+        # Temporary prompts last only until the next animation starts
+        self._temporary_prompt = None
+
         term_w, term_h = r.get_size()
         card_w, card_h = self._choose_card_size(term_w, term_h)
 
@@ -243,7 +250,7 @@ class BlackjackTable:
                 y = int(round(lerp(src_y, dst_y_to_use, p)))
 
                 # draw persistent scene
-                self.render(r, prompt=prompt, show_shoe_card=False)
+                self.render(r, show_shoe_card=False)
 
                 # draw moving card on top
                 r.draw_sprite(sprite_to_draw, x, y, layout["term_w"], layout["term_h"], style=style_to_use)
@@ -276,7 +283,7 @@ class BlackjackTable:
                     mixed_lines.append(t_line[:m] + f_line[m:ww])
                 mixed = type(to_sprite)(mixed_lines)  # Sprite
 
-                self.render(r, prompt=prompt, show_shoe_card=True)
+                self.render(r, show_shoe_card=True)
                 # draw mixed card on top
                 r.draw_sprite(mixed, x, y, layout["term_w"], layout["term_h"], style=to_style)
                 r.flush()
@@ -293,7 +300,7 @@ class BlackjackTable:
             face = card_face(rank, suit, card_w, card_h)
             _animate_move_to_slot(dst_index, face, suit_style(suit))
             self.player_hand.append((rank, suit, False))
-            self.render(r, prompt=prompt)
+            self.render(r)
             return
 
         # -------------------------
@@ -310,7 +317,7 @@ class BlackjackTable:
             _animate_move_to_slot(1, back, RESET)
             self.dealer_hand.append(("?", "?", True))
 
-            self.render(r, prompt=prompt)
+            self.render(r)
             return
 
         # If hole exists and is still facedown -> reveal it by flipping in-place (this is the "second dealer draw")
@@ -321,7 +328,7 @@ class BlackjackTable:
             _animate_flip_in_place(x1, y1, back, to_face, suit_style(suit))
             # update stored hole
             self.dealer_hand[1] = (rank, suit, False)
-            self.render(r, prompt=prompt)
+            self.render(r)
             return
 
         # Otherwise: normal dealer hit - draw new face-up card to next slot
@@ -329,8 +336,35 @@ class BlackjackTable:
         faceN = card_face(rank, suit, card_w, card_h)
         _animate_move_to_slot(dst_index, faceN, suit_style(suit))
         self.dealer_hand.append((rank, suit, False))
-        self.render(r, prompt=prompt)
+        self.render(r)
 
-    # convenience helpers
-    def set_prompt(self, r: TerminalRenderer, text: str) -> None:
-        self.render(r, prompt=text)
+    def set_permanent_prompt(self, r: TerminalRenderer, text: str | None) -> None:
+        """
+        Set a permanent prompt (persists across animations). If text is None or empty, clears it.
+        Setting a permanent prompt clears any temporary prompt.
+        """
+        if not text:
+            self._permanent_prompt = None
+        else:
+            self._permanent_prompt = text
+        self._temporary_prompt = None
+        self.render(r, show_shoe_card=True)
+
+    def set_temporary_prompt(self, r: TerminalRenderer, text: str | None) -> None:
+        """
+        Set a temporary prompt (shown immediately and during the *current* animation),
+        and cleared automatically when the next animation starts.
+        If text is None or empty, clears the temporary prompt.
+        """
+        if not text:
+            self._temporary_prompt = None
+        else:
+            self._temporary_prompt = text
+        # temporary replaces any previous temporary; permanent remains underneath
+        self.render(r, show_shoe_card=True)
+
+    def display_prompt(self, r: TerminalRenderer, text: str) -> None:
+        """
+        Convenience wrapper: set a TEMPORARY prompt and redraw.
+        """
+        self.set_temporary_prompt(r, text)
