@@ -30,7 +30,6 @@ def main():
     r.begin()
     try:
         table = BlackjackTable(BlackjackTableConfig())
-        """
         intro.run(r)
 
         # small pause between scenes
@@ -74,7 +73,7 @@ def main():
         # keep final state visible
         time.sleep(1.0)
         table.win(r)
-        table.lose(r)"""
+        table.lose(r)
         table.busted(r)
 
     finally:
