@@ -3,8 +3,19 @@
 import struct
 from dataclasses import dataclass
 from typing import Tuple, Literal, Union
+from .logging_utils import get_logger
+import logging
 
-from .constants import *
+
+from .constants import (
+    MAGIC_COOKIE,
+    TYPE_OFFER, TYPE_REQUEST, TYPE_PAYLOAD,
+    NAME_LEN, DECISION_LEN,
+    OFFER_LEN, REQUEST_LEN, PAYLOAD_CLIENT_LEN, PAYLOAD_SERVER_LEN,
+    VALID_DECISIONS, VALID_RESULTS,
+    SUIT_TO_CODE, CODE_TO_SUIT,
+)
+_log = get_logger("protocol")
 
 # -------------------------
 # Errors
@@ -16,6 +27,7 @@ class ProtocolError(ValueError):
 
 def _require(condition: bool, msg: str) -> None:
     if not condition:
+        _log.warning(f"ProtocolError: {msg}")
         raise ProtocolError(msg)
 
 
