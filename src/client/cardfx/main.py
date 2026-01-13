@@ -29,13 +29,14 @@ def main():
 
     r.begin()
     try:
+        table = BlackjackTable(BlackjackTableConfig())
+        """
         intro.run(r)
 
         # small pause between scenes
         time.sleep(0.4)
 
         # --- 2) Blackjack table ---
-        table = BlackjackTable(BlackjackTableConfig())
         table.render(r)
         time.sleep(1)
         table.set_permanent_prompt(r, "Initial Draw")
@@ -72,6 +73,9 @@ def main():
 
         # keep final state visible
         time.sleep(1.0)
+        table.win(r)
+        table.lose(r)"""
+        table.busted(r)
 
     finally:
         r.end()
