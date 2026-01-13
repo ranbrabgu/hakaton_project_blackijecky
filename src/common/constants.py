@@ -33,3 +33,5 @@ SUIT_TO_CODE = {"H": 0, "D": 1, "C": 2, "S": 3}
 CODE_TO_SUIT = {v: k for k, v in SUIT_TO_CODE.items()}
 
 VALID_DECISIONS = {"Hittt", "Stand"}
+
+TEAMNAME = "MITSY MITSY MREOW MEOW =^.^="

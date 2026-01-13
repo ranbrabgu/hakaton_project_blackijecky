@@ -31,7 +31,9 @@ def main() -> None:
     tcp_listener = _create_tcp_listener()
     tcp_port = tcp_listener.getsockname()[1]
     log.info(f"TCP listening on port {tcp_port}")
-
+    server_ip = socket.gethostbyname(socket.gethostname())
+    print(f"Server started, listening on IP address {server_ip}")
+    
     t = threading.Thread(
         target=broadcast_offers,
         args=(server_name, tcp_port, stop_event),

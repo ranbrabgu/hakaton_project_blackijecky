@@ -1,21 +1,14 @@
 # src/client/main.py
 
-from src.common.logging_utils import setup_logging, get_logger
-from src.client.discovery import listen_for_offer
-import socket
-from src.common.protocol import build_request
-from src.common.logging_utils import log_packet
-from src.common.constants import RESULT_NOT_OVER
-from src.client.gameplay import recv_server_payload, send_decision
 import socket
 from src.common.protocol import build_request
 from src.common.logging_utils import setup_logging, get_logger, log_packet
-from src.common.constants import RESULT_NOT_OVER, RESULT_WIN, RESULT_LOSS, RESULT_TIE
+from src.common.constants import *
 from src.common.cards import Card
-from src.common.rules import hand_value, is_bust
-from src.client.discovery import listen_for_offer
-from src.client.gameplay import recv_server_payload, send_decision
-from src.client.ui import ask_decision
+from src.common.rules import *
+from src.client.discovery import *
+from src.client.gameplay import *
+from src.client.ui import *
 
 
 log = get_logger("client.main")
@@ -23,20 +16,33 @@ log = get_logger("client.main")
 
 def main() -> None:
     setup_logging()
-    log.info("Listening for offers...")
+    print("Client started, listening for offer requests...")
 
     try:
-        offer, addr = listen_for_offer(timeout_sec=10.0)
+        offers = collect_offers(window_sec=3.0)
+        if not offers:
+            print("No offers received, exiting.")
+            return
+        print("Available servers:")
+        for i, (offer, (ip, _)) in enumerate(offers, start=1):
+            print(f"{i}) {offer.server_name} ({ip}:{offer.tcp_port})")
+        
+        choice = int(input("Please choose a server: "))
+        offer, (server_ip, _) = offers[choice - 1]
+
+        print(f"Received offer from {server_ip}, attempting to connect...")
+        server_addr = (server_ip, offer.tcp_port)
+
     except TimeoutError as e:
         log.error(str(e))
         return
 
 
-    server_ip, _server_udp_port = addr
-    log.info(f"Found server '{offer.server_name}' at {server_ip}, TCP port {offer.tcp_port}")
+    print(f"Received offer from {server_ip}, attempting to connect...")
 
-    team_name = "___TeamName___"    # later: from args/input
-    rounds = 3                      # later: from args/input
+    print(welcome_script())
+    team_name = TEAMNAME    
+    rounds = get_round_num()
 
     req_bytes = build_request(rounds=rounds, team_name=team_name)
     server_addr = (server_ip, offer.tcp_port)
