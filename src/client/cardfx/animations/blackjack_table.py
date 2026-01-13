@@ -44,6 +44,8 @@ ANSI_RESET = "\x1b[0m"
 ANSI_BOLD_GREEN = "\x1b[1;32m"
 ANSI_BOLD_RED = "\x1b[1;31m"
 ANSI_BLOOD_RED = "\x1b[38;5;88m"   # deep blood red (256-color)
+ANSI_BOLD_YELLOW = "\x1b[1;33m"
+ANSI_BOLD_CYAN = "\x1b[1;36m"
 ANSI_DIM_BLUE = "\x1b[2;34m"
 ANSI_DIM_CYAN = "\x1b[2;36m"
 ANSI_DIM_WHITE = "\x1b[2;37m"
@@ -322,7 +324,7 @@ class BlackjackTable:
 
     def _sfx_say(self, text: str) -> None:
         """
-        macOS: speak a short cheering line asynchronously using `say`.
+        macOS: speak asynchronously using `say`.
         """
         try:
             if sys.platform != "darwin":
@@ -331,6 +333,22 @@ class BlackjackTable:
                 ["say", text],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            pass
+
+    def _sfx_say_blocking(self, text: str) -> None:
+        """
+        macOS: speak and BLOCK until finished (used when sequencing audio).
+        """
+        if sys.platform != "darwin":
+            return
+        try:
+            subprocess.run(
+                ["say", text],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
             )
         except Exception:
             pass
@@ -416,6 +434,17 @@ class BlackjackTable:
             return
         if phase == "start":
             self._sfx_say("Busted.")
+
+    def _tie_sfx(self, phase: str = "tick") -> None:
+        """
+        TIE SFX: TTS only.
+        """
+        if not getattr(self.cfg, "enable_sfx", True):
+            return
+        if sys.platform != "darwin":
+            return
+        if phase == "start":
+            self._sfx_say("Tie.")
 
     def _big_win_patterns(self):
         # 7x7 bitmap patterns (1 = filled)
@@ -555,6 +584,89 @@ class BlackjackTable:
         ]
         return {"B": B, "U": U, "S": S, "T": T, "E": E, "D": D}
 
+    def _big_tie_patterns(self):
+        # 7x7 bitmap patterns (1 = filled)
+        T = [
+            "1111111",
+            "0011100",
+            "0011100",
+            "0011100",
+            "0011100",
+            "0011100",
+            "0011100",
+        ]
+        I = [
+            "1111111",
+            "0011100",
+            "0011100",
+            "0011100",
+            "0011100",
+            "0011100",
+            "1111111",
+        ]
+        E = [
+            "1111111",
+            "1000000",
+            "1000000",
+            "1111110",
+            "1000000",
+            "1000000",
+            "1111111",
+        ]
+        return {"T": T, "I": I, "E": E}
+
+    def _big_fight_patterns(self):
+        # 7x7 bitmap patterns (1 = filled)
+        F = [
+            "1111111",
+            "1100000",
+            "1100000",
+            "1111110",
+            "1100000",
+            "1100000",
+            "1100000",
+        ]
+        I = [
+            "1111111",
+            "0011100",
+            "0011100",
+            "0011100",
+            "0011100",
+            "0011100",
+            "1111111",
+        ]
+        G = [
+            "0111110",
+            "1100011",
+            "1100000",
+            "1101111",
+            "1100011",
+            "1100011",
+            "0111110",
+        ]
+        H = [
+            "1100011",
+            "1100011",
+            "1100011",
+            "1111111",
+            "1100011",
+            "1100011",
+            "1100011",
+        ]
+        T = [
+            "1111111",
+            "0011100",
+            "0011100",
+            "0011100",
+            "0011100",
+            "0011100",
+            "0011100",
+        ]
+        return {"F": F, "I": I, "G": G, "H": H, "T": T}
+
+    def _compose_big_fight(self, term_w: int, term_h: int) -> Tuple[List[str], int, int]:
+        return self._compose_big_word(term_w, term_h, "FIGHT", self._big_fight_patterns())
+
     def _compose_big_word(self, term_w: int, term_h: int, word: str, patterns: dict) -> Tuple[List[str], int, int]:
         """
         Compose a big word from 7x7 bitmaps; returns (lines, x, y).
@@ -565,6 +677,12 @@ class BlackjackTable:
 
         letter_lines = []
         for ch in word:
+            # Keep spaces as actual gaps between words
+            if ch == " ":
+                bm_space = ["0" * 7] * 7  # 7x7 blank bitmap
+                letter_lines.append(self._scale_bitmap(bm_space, scale))
+                continue
+
             bm = patterns.get(ch)
             if bm is None:
                 continue
@@ -602,6 +720,9 @@ class BlackjackTable:
 
     def _compose_big_busted(self, term_w: int, term_h: int) -> Tuple[List[str], int, int]:
         return self._compose_big_word(term_w, term_h, "BUSTED", self._big_busted_patterns())
+
+    def _compose_big_tie(self, term_w: int, term_h: int) -> Tuple[List[str], int, int]:
+        return self._compose_big_word(term_w, term_h, "TIE", self._big_tie_patterns())
 
     # ---------- rendering ----------
     def render(self, r: TerminalRenderer, *, show_shoe_card: bool = True) -> None:
@@ -1090,3 +1211,251 @@ class BlackjackTable:
             time.sleep(dt)
 
         self._stop_bg_audio()
+    def tie(self, r: TerminalRenderer, *, duration: float = 3.0, intensity: int = 90) -> None:
+        """
+        Full-screen TIE overlay:
+        - Huge cyan 'TIE'
+        - Simple neutral sparkle particles
+        - TTS: 'Tie.'
+        """
+        term_w, term_h = r.get_size()
+        art_lines, art_x, art_y = self._compose_big_tie(term_w, term_h)
+
+        self._tie_sfx("start")
+
+        start = time.time()
+        dt = 1.0 / max(1, self.cfg.fps)
+
+        while True:
+            t = time.time() - start
+            if t >= duration:
+                break
+
+            if r.clear_each_frame:
+                r.clear()
+
+            # neutral sparkles
+            for _ in range(intensity):
+                x = random.randint(0, max(0, term_w - 1))
+                y = random.randint(0, max(0, term_h - 2))
+                r.move(y + 1, x + 1)
+                print(ANSI_DIM_WHITE + random.choice(["·", ".", ":", "•"]) + ANSI_RESET, end="")
+
+            # draw big TIE
+            for i, line in enumerate(art_lines):
+                yy = art_y + i
+                if 0 <= yy < term_h:
+                    r.move(yy + 1, art_x + 1)
+                    print(ANSI_BOLD_CYAN + line + ANSI_RESET, end="")
+
+            r.flush()
+            time.sleep(dt)
+
+    def round(self, r: TerminalRenderer, x: int, *, screen_hold: float = 1.2) -> None:
+        """
+        Round splash:
+        - Shows big 'ROUND X'
+        - Speaks 'Round {x}' (blocking)
+        - ONLY after TTS completes, plays fight.mp3
+        """
+        term_w, term_h = r.get_size()
+        art_lines, art_x, art_y = self._compose_big_round(term_w, term_h, x)
+
+        # Clear and draw the round splash
+        if r.clear_each_frame:
+            r.clear()
+
+        # subtle corner sparks (static)
+        for _ in range(120):
+            xx = random.randint(0, max(0, term_w - 1))
+            yy = random.randint(0, max(0, term_h - 2))
+            if random.random() < 0.15:
+                r.move(yy + 1, xx + 1)
+                print("\x1b[2;33m" + random.choice([".", "·", "*"]) + ANSI_RESET, end="")
+
+        for i, line in enumerate(art_lines):
+            yy = art_y + i
+            if 0 <= yy < term_h:
+                r.move(yy + 1, art_x + 1)
+                print(ANSI_BOLD_YELLOW + line + ANSI_RESET, end="")
+
+        r.flush()
+
+        # Speak (blocking), then play fight.mp3
+        self._sfx_say_blocking(f"Round {x}")
+        self._play_bg_mp3("fight.mp3")
+
+        # As soon as the fight audio starts, switch the splash to FIGHT
+        fight_lines, fight_x, fight_y = self._compose_big_fight(term_w, term_h)
+
+        if r.clear_each_frame:
+            r.clear()
+
+        # reuse the same subtle sparks
+        for _ in range(120):
+            xx = random.randint(0, max(0, term_w - 1))
+            yy = random.randint(0, max(0, term_h - 2))
+            if random.random() < 0.15:
+                r.move(yy + 1, xx + 1)
+                print("\x1b[2;33m" + random.choice([".", "·", "*"]) + ANSI_RESET, end="")
+
+        for i, line in enumerate(fight_lines):
+            yy = fight_y + i
+            if 0 <= yy < term_h:
+                r.move(yy + 1, fight_x + 1)
+                print(ANSI_BOLD_YELLOW + line + ANSI_RESET, end="")
+
+        r.flush()
+
+        # Hold screen briefly while music starts, then stop (keeps flow snappy)
+        time.sleep(max(0.0, screen_hold))
+        self._stop_bg_audio()
+    def _big_round_patterns(self):
+        # Reuse 7x7 style for ROUND + digits
+        R = [
+            "1111110",
+            "1000011",
+            "1000011",
+            "1111110",
+            "1001100",
+            "1000110",
+            "1000011",
+        ]
+        O = [
+            "0111110",
+            "1100011",
+            "1100011",
+            "1100011",
+            "1100011",
+            "1100011",
+            "0111110",
+        ]
+        U = [
+            "1000001",
+            "1000001",
+            "1000001",
+            "1000001",
+            "1000001",
+            "1000001",
+            "0111110",
+        ]
+        N = [
+            "1000001",
+            "1100001",
+            "1110001",
+            "1011001",
+            "1001101",
+            "1000111",
+            "1000001",
+        ]
+        D = [
+            "1111110",
+            "1000011",
+            "1000001",
+            "1000001",
+            "1000001",
+            "1000011",
+            "1111110",
+        ]
+
+        digits = {
+            "0": [
+                "0111110",
+                "1100011",
+                "1100111",
+                "1101011",
+                "1110011",
+                "1100011",
+                "0111110",
+            ],
+            "1": [
+                "0011000",
+                "0111000",
+                "0011000",
+                "0011000",
+                "0011000",
+                "0011000",
+                "0111110",
+            ],
+            "2": [
+                "0111110",
+                "1100011",
+                "0000011",
+                "0001110",
+                "0110000",
+                "1100000",
+                "1111111",
+            ],
+            "3": [
+                "0111110",
+                "1100011",
+                "0000011",
+                "0011110",
+                "0000011",
+                "1100011",
+                "0111110",
+            ],
+            "4": [
+                "0001110",
+                "0011110",
+                "0110110",
+                "1100110",
+                "1111111",
+                "0000110",
+                "0000110",
+            ],
+            "5": [
+                "1111111",
+                "1100000",
+                "1111110",
+                "0000011",
+                "0000011",
+                "1100011",
+                "0111110",
+            ],
+            "6": [
+                "0011110",
+                "0110000",
+                "1100000",
+                "1111110",
+                "1100011",
+                "1100011",
+                "0111110",
+            ],
+            "7": [
+                "1111111",
+                "0000011",
+                "0000110",
+                "0001100",
+                "0011000",
+                "0011000",
+                "0011000",
+            ],
+            "8": [
+                "0111110",
+                "1100011",
+                "1100011",
+                "0111110",
+                "1100011",
+                "1100011",
+                "0111110",
+            ],
+            "9": [
+                "0111110",
+                "1100011",
+                "1100011",
+                "0111111",
+                "0000011",
+                "0000110",
+                "0111100",
+            ],
+        }
+
+        pat = {"R": R, "O": O, "U": U, "N": N, "D": D}
+        pat.update(digits)
+        return pat
+
+    def _compose_big_round(self, term_w: int, term_h: int, x: int) -> Tuple[List[str], int, int]:
+        # Allow multi-digit x
+        word = f"ROUND {x}"
+        return self._compose_big_word(term_w, term_h, word, self._big_round_patterns())

@@ -80,7 +80,7 @@ def main() -> None:
                     cascade_flip_dur=0.16,
                 )
             )
-            #table.round(rend, r)
+            table.round(rend, r+1)
             intro.run(rend)
             table.set_permanent_prompt(rend, "Initial Draw")
 
@@ -174,7 +174,7 @@ def main() -> None:
                 log.info("Result: LOSS")
             elif final_result == RESULT_TIE:
                 time.sleep(1)
-                #table.tie(rend)
+                table.tie(rend)
                 ties += 1
                 log.info("Result: TIE")
             else:
