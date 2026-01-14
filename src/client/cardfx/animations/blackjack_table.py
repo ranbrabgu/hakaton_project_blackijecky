@@ -1251,6 +1251,82 @@ class BlackjackTable:
             r.flush()
             time.sleep(dt)
 
+    def stats(self, r: TerminalRenderer, wins: int, losses: int, ties: int, *, duration: float = 3.5) -> None:
+        """
+        Stats splash:
+        Displays wins, losses, and win rate.
+        """
+        term_w, term_h = r.get_size()
+        w = max(0, int(wins))
+        l = max(0, int(losses))
+        t_ = max(0, int(ties))
+        total = w + l + t_
+        if total <= 0:
+            winrate = 0.0
+        else:
+            winrate = (w / total) * 100.0
+        # play special audio if winrate is 0% and extend duration to 3:03
+        if winrate <= 0.0:
+            self._play_bg_mp3("Big Loser.mp3")
+            duration = 183.0  # 3 minutes and 3 seconds
+
+        lines = [
+            "STATS",
+            "",
+            f"Wins:   {w}",
+            f"Losses: {l}",
+            f"Ties:   {t_}",
+            "",
+            f"Win rate: {winrate:.1f}%",
+        ]
+
+        # Center the block
+        block_w = max(len(s) for s in lines)
+        block_h = len(lines)
+        x0 = max(0, (term_w // 2) - (block_w // 2))
+        y0 = max(0, (term_h // 2) - (block_h // 2) - 1)
+
+        start = time.time()
+        dt = 1.0 / max(1, self.cfg.fps)
+
+        while True:
+            if time.time() - start >= duration:
+                break
+
+            if r.clear_each_frame:
+                r.clear()
+
+            # light neutral sparkle background
+            for _ in range(80):
+                x = random.randint(0, max(0, term_w - 1))
+                y = random.randint(0, max(0, term_h - 2))
+                r.move(y + 1, x + 1)
+                print(ANSI_DIM_WHITE + random.choice(["·", ".", ":"]) + ANSI_RESET, end="")
+
+            for i, s in enumerate(lines):
+                yy = y0 + i
+                if 0 <= yy < term_h:
+                    r.move(yy + 1, x0 + 1)
+                    if s == "STATS":
+                        print(ANSI_BOLD_CYAN + BOLD.prefix + s + BOLD.suffix + ANSI_RESET, end="")
+                    elif s.startswith("Wins:"):
+                        print(ANSI_BOLD_GREEN + s + ANSI_RESET, end="")
+                    elif s.startswith("Losses:"):
+                        print(ANSI_BOLD_RED + s + ANSI_RESET, end="")
+                    elif s.startswith("Ties:"):
+                        print(ANSI_BOLD_CYAN + s + ANSI_RESET, end="")
+                    elif s.startswith("Win rate:"):
+                        # yellow if positive, red if zero
+                        col = ANSI_BOLD_YELLOW if winrate > 0 else ANSI_BOLD_RED
+                        print(col + s + ANSI_RESET, end="")
+                    else:
+                        print(BOLD.prefix + s + BOLD.suffix, end="")
+
+            r.flush()
+            time.sleep(dt)
+
+        self._stop_bg_audio()
+
     def round(self, r: TerminalRenderer, x: int, *, screen_hold: float = 1.2) -> None:
         """
         Round splash:

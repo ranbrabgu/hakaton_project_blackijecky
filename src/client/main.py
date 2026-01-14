@@ -179,7 +179,7 @@ def main() -> None:
                 log.info("Result: TIE")
             else:
                 log.info(f"Result: (unknown code {final_result})")
-
+        table.stats(rend, wins, losses, ties)
         log.info(f"===== MATCH OVER =====  W={wins} L={losses} T={ties}")
 
 def rank_to_string(rank: int):
